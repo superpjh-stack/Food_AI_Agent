@@ -1,0 +1,66 @@
+version: "3.9"
+
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    container_name: food-ai-db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: food_ai_agent
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./food-ai-agent-api
+      dockerfile: Dockerfile
+    container_name: food-ai-backend
+    environment:
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@db:5432/food_ai_agent
+      JWT_SECRET_KEY: docker-dev-secret-key-change-in-production
+      CORS_ORIGINS: '["http://localhost:3000","http://localhost"]'
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      APP_ENV: development
+      DEBUG: "true"
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    command: >
+      sh -c "
+        cd /app &&
+        alembic -c alembic/alembic.ini upgrade head &&
+        python -m app.seed &&
+        uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+      "
+    volumes:
+      - ./food-ai-agent-api:/app
+
+  frontend:
+    build:
+      context: ./food-ai-agent-web
+      dockerfile: Dockerfile
+    container_name: food-ai-frontend
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8000/api/v1
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    volumes:
+      - ./food-ai-agent-web:/app
+      - /app/node_modules
+      - /app/.next
+
+volumes:
+  pgdata:

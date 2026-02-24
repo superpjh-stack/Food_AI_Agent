@@ -1,0 +1,49 @@
+{
+  "timestamp": "2026-02-23T04:04:34.360Z",
+  "reason": "compaction",
+  "status": {
+    "version": "2.0",
+    "lastUpdated": "2026-02-23T02:53:00.000Z",
+    "activeFeatures": [
+      "food-ai-agent"
+    ],
+    "primaryFeature": "food-ai-agent",
+    "features": {
+      "food-ai-agent": {
+        "phase": "design",
+        "startedAt": "2026-02-23T02:06:32.844Z",
+        "lastActivity": "2026-02-23T02:53:00.000Z",
+        "planDoc": "docs/01-plan/features/food-ai-agent.plan.md",
+        "designDoc": "docs/02-design/features/food-ai-agent.design.md",
+        "matchRate": null,
+        "iterationCount": 0
+      }
+    },
+    "pipeline": {
+      "currentPhase": 4,
+      "level": "Dynamic",
+      "phaseHistory": [
+        "plan",
+        "design"
+      ]
+    },
+    "session": {
+      "startedAt": "2026-02-23T02:06:32.844Z",
+      "onboardingCompleted": true,
+      "lastActivity": "2026-02-23T02:53:00.000Z",
+      "teamMode": "food-ai-cto-team"
+    },
+    "history": [
+      {
+        "phase": "plan",
+        "completedAt": "2026-02-23T02:53:00.000Z",
+        "doc": "docs/01-plan/features/food-ai-agent.plan.md"
+      },
+      {
+        "phase": "design",
+        "completedAt": "2026-02-23T02:53:00.000Z",
+        "doc": "docs/02-design/features/food-ai-agent.design.md"
+      }
+    ]
+  }
+}

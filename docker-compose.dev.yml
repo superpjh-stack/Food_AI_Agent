@@ -1,0 +1,25 @@
+version: "3.9"
+
+# Development overrides: hot reload for backend and frontend
+# Usage: docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+
+services:
+  backend:
+    command: >
+      sh -c "
+        cd /app &&
+        alembic -c alembic/alembic.ini upgrade head &&
+        python -m app.seed &&
+        uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+      "
+    volumes:
+      - ./food-ai-agent-api:/app
+    environment:
+      DEBUG: "true"
+
+  frontend:
+    command: npm run dev
+    volumes:
+      - ./food-ai-agent-web:/app
+      - /app/node_modules
+      - /app/.next

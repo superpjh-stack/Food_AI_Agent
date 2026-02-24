@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls \"C:/gerardo/01 SmallSF/Food-AI-Agent/food-ai-agent-api/app/routers/\" 2>/dev/null && ls \"C:/gerardo/01 SmallSF/Food-AI-Agent/food-ai-agent-web/app/\\(main\\)/\" 2>/dev/null)",
+      "Bash(ls \"C:/gerardo/01 SmallSF/Food-AI-Agent/food-ai-agent-web/app/\\(main\\)/haccp/\" 2>/dev/null && ls \"C:/gerardo/01 SmallSF/Food-AI-Agent/food-ai-agent-web/components/haccp/\" 2>/dev/null && ls \"C:/gerardo/01 SmallSF/Food-AI-Agent/food-ai-agent-web/components/chat/\" 2>/dev/null)",
+      "Bash(ls \"C:/gerardo/01 SmallSF/Food-AI-Agent/food-ai-agent-web/app/\\(main\\)/haccp/\" && ls \"C:/gerardo/01 SmallSF/Food-AI-Agent/food-ai-agent-web/app/\\(main\\)/dashboard/\" && ls \"C:/gerardo/01 SmallSF/Food-AI-Agent/food-ai-agent-web/components/dashboard/\" 2>/dev/null)",
+      "Bash(cat:*)",
+      "Skill(bkit:pdca)",
+      "Bash(mkdir:*)"
+    ]
+  }
+}
