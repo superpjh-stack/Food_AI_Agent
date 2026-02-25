@@ -67,8 +67,8 @@ async def list_inventory(
 @router.put("/{item_id}")
 async def adjust_inventory(
     item_id: UUID,
-    site_id: UUID = Query(...),
     body: InventoryAdjustRequest,
+    site_id: UUID = Query(...),
     db: AsyncSession = Depends(get_db),
     current_user: User = require_role("PUR", "KIT"),
 ):

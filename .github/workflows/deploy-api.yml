@@ -1,0 +1,237 @@
+name: Deploy API to Cloud Run
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'food-ai-agent-api/**'
+      - '.github/workflows/deploy-api.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'food-ai-agent-api/**'
+
+env:
+  PROJECT_ID: food-ai-agent-prod        # GCP Project ID
+  REGION: asia-northeast3               # Seoul
+  SERVICE: food-ai-agent-api
+  REPOSITORY: food-ai
+  CLOUD_SQL_INSTANCE: food-ai-agent-db  # Cloud SQL instance name
+  VPC_CONNECTOR: food-ai-connector
+
+jobs:
+  # ─────────────────────────────────────────────────
+  # Job 1: Lint + Test
+  # ─────────────────────────────────────────────────
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_DB: food_ai_agent_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: testpass
+        ports:
+          - '5432:5432'
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          cd food-ai-agent-api
+          pip install -r requirements.txt
+
+      - name: Run migrations
+        run: |
+          cd food-ai-agent-api
+          alembic -c alembic/alembic.ini upgrade head
+        env:
+          DATABASE_URL: postgresql+asyncpg://postgres:testpass@localhost:5432/food_ai_agent_test
+
+      - name: Run tests
+        run: |
+          cd food-ai-agent-api
+          pytest --tb=short -q
+        env:
+          DATABASE_URL: postgresql+asyncpg://postgres:testpass@localhost:5432/food_ai_agent_test
+          JWT_SECRET_KEY: test-secret-key
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY_TEST }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY_TEST }}
+          APP_ENV: test
+          DEBUG: 'false'
+
+  # ─────────────────────────────────────────────────
+  # Job 2: Build & Push Docker image
+  # ─────────────────────────────────────────────────
+  build:
+    name: Build & Push
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write  # Required for Workload Identity Federation
+
+    outputs:
+      image: ${{ steps.build.outputs.image }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.WIF_SA_EMAIL }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker
+        run: gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev
+
+      - name: Build and Push
+        id: build
+        run: |
+          IMAGE="${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.SERVICE }}:${{ github.sha }}"
+          docker build -t $IMAGE food-ai-agent-api/
+          docker push $IMAGE
+          # Also tag as latest
+          docker tag $IMAGE "${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.SERVICE }}:latest"
+          docker push "${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.SERVICE }}:latest"
+          echo "image=$IMAGE" >> $GITHUB_OUTPUT
+
+  # ─────────────────────────────────────────────────
+  # Job 3: Deploy to Staging
+  # ─────────────────────────────────────────────────
+  deploy-staging:
+    name: Deploy (Staging)
+    needs: build
+    runs-on: ubuntu-latest
+    environment: staging
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.WIF_SA_EMAIL }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Deploy to Cloud Run (Staging)
+        uses: google-github-actions/deploy-cloudrun@v2
+        with:
+          service: ${{ env.SERVICE }}-staging
+          region: ${{ env.REGION }}
+          image: ${{ needs.build.outputs.image }}
+          flags: >-
+            --platform=managed
+            --allow-unauthenticated
+            --add-cloudsql-instances=${{ env.PROJECT_ID }}:${{ env.REGION }}:${{ env.CLOUD_SQL_INSTANCE }}
+            --vpc-connector=${{ env.VPC_CONNECTOR }}
+            --min-instances=0
+            --max-instances=5
+            --cpu=2
+            --memory=2Gi
+            --timeout=300
+          env_vars: |
+            APP_ENV=staging
+            DEBUG=false
+            CORS_ORIGINS=["https://staging.foodai.example.com"]
+            CLAUDE_MODEL=claude-sonnet-4-6
+            CLAUDE_MAX_TOKENS=4096
+            EMBEDDING_MODEL=text-embedding-3-small
+            EMBEDDING_DIMENSION=1536
+          secrets: |
+            DATABASE_URL=database-url:latest
+            JWT_SECRET_KEY=jwt-secret:latest
+            ANTHROPIC_API_KEY=anthropic-api-key:latest
+            OPENAI_API_KEY=openai-api-key:latest
+
+      - name: Smoke Test (Staging)
+        run: |
+          URL=$(gcloud run services describe ${{ env.SERVICE }}-staging \
+            --region=${{ env.REGION }} --format='value(status.url)')
+          echo "Staging URL: $URL"
+          # Health check
+          curl -f "$URL/health" || exit 1
+          echo "Smoke test passed"
+
+  # ─────────────────────────────────────────────────
+  # Job 4: Deploy to Production (manual approval)
+  # ─────────────────────────────────────────────────
+  deploy-production:
+    name: Deploy (Production)
+    needs: deploy-staging
+    runs-on: ubuntu-latest
+    environment: production  # Requires manual approval in GitHub
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.WIF_SA_EMAIL }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Deploy to Cloud Run (Production)
+        uses: google-github-actions/deploy-cloudrun@v2
+        with:
+          service: ${{ env.SERVICE }}
+          region: ${{ env.REGION }}
+          image: ${{ needs.build.outputs.image }}
+          flags: >-
+            --platform=managed
+            --allow-unauthenticated
+            --add-cloudsql-instances=${{ env.PROJECT_ID }}:${{ env.REGION }}:${{ env.CLOUD_SQL_INSTANCE }}
+            --vpc-connector=${{ env.VPC_CONNECTOR }}
+            --min-instances=1
+            --max-instances=10
+            --cpu=2
+            --memory=2Gi
+            --timeout=300
+          env_vars: |
+            APP_ENV=production
+            DEBUG=false
+            CORS_ORIGINS=["https://foodai.example.com"]
+            CLAUDE_MODEL=claude-sonnet-4-6
+            CLAUDE_MAX_TOKENS=4096
+            EMBEDDING_MODEL=text-embedding-3-small
+            EMBEDDING_DIMENSION=1536
+          secrets: |
+            DATABASE_URL=database-url:latest
+            JWT_SECRET_KEY=jwt-secret:latest
+            ANTHROPIC_API_KEY=anthropic-api-key:latest
+            OPENAI_API_KEY=openai-api-key:latest
+
+      - name: Verify Production Deployment
+        run: |
+          URL=$(gcloud run services describe ${{ env.SERVICE }} \
+            --region=${{ env.REGION }} --format='value(status.url)')
+          echo "Production URL: $URL"
+          curl -f "$URL/health" || exit 1
+          echo "Production deployment verified"
