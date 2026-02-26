@@ -52,11 +52,11 @@ def upgrade() -> None:
         sa.Column("site_id", UUID(as_uuid=True), sa.ForeignKey("sites.id")),
         sa.Column("unit_price", sa.Numeric(12, 2), nullable=False),
         sa.Column("unit", sa.String(50), nullable=False),
-        sa.Column("currency", sa.String(10), server_default="'KRW'"),
+        sa.Column("currency", sa.String(10), server_default=sa.text("'KRW'")),
         sa.Column("effective_from", sa.Date, nullable=False),
         sa.Column("effective_to", sa.Date),
         sa.Column("is_current", sa.Boolean, server_default="true"),
-        sa.Column("source", sa.String(50), server_default="'manual'"),
+        sa.Column("source", sa.String(50), server_default=sa.text("'manual'")),
         sa.Column("created_at", sa.TIMESTAMP(timezone=True), server_default=sa.text("NOW()")),
     )
     op.create_index("ix_vendor_prices_item_vendor", "vendor_prices", ["item_id", "vendor_id"])
@@ -71,7 +71,7 @@ def upgrade() -> None:
         sa.Column("period_start", sa.Date, nullable=False),
         sa.Column("period_end", sa.Date, nullable=False),
         sa.Column("headcount", sa.Integer, nullable=False),
-        sa.Column("status", sa.String(20), nullable=False, server_default="'draft'"),
+        sa.Column("status", sa.String(20), nullable=False, server_default=sa.text("'draft'")),
         sa.Column("total_cost", sa.Numeric(14, 2), server_default="0"),
         sa.Column("cost_per_meal", sa.Numeric(10, 2)),
         sa.Column("ai_summary", sa.Text),
@@ -94,7 +94,7 @@ def upgrade() -> None:
         sa.Column("inventory_available", sa.Numeric(12, 3), server_default="0"),
         sa.Column("order_quantity", sa.Numeric(12, 3)),
         sa.Column("preferred_vendor_id", UUID(as_uuid=True), sa.ForeignKey("vendors.id")),
-        sa.Column("source_recipes", JSONB, server_default="'[]'"),
+        sa.Column("source_recipes", JSONB, server_default=sa.text("'[]'")),
         sa.Column("notes", sa.Text),
         sa.Column("created_at", sa.TIMESTAMP(timezone=True), server_default=sa.text("NOW()")),
     )
@@ -108,7 +108,7 @@ def upgrade() -> None:
         sa.Column("site_id", UUID(as_uuid=True), sa.ForeignKey("sites.id"), nullable=False),
         sa.Column("vendor_id", UUID(as_uuid=True), sa.ForeignKey("vendors.id"), nullable=False),
         sa.Column("po_number", sa.String(50), unique=True),
-        sa.Column("status", sa.String(20), nullable=False, server_default="'draft'"),
+        sa.Column("status", sa.String(20), nullable=False, server_default=sa.text("'draft'")),
         sa.Column("order_date", sa.Date, nullable=False),
         sa.Column("delivery_date", sa.Date, nullable=False),
         sa.Column("total_amount", sa.Numeric(14, 2), server_default="0"),
@@ -175,9 +175,9 @@ def upgrade() -> None:
         sa.Column("received_at", sa.TIMESTAMP(timezone=True), nullable=False),
         sa.Column("expiry_date", sa.Date),
         sa.Column("storage_temp", sa.Numeric(5, 1)),
-        sa.Column("status", sa.String(20), server_default="'active'"),
+        sa.Column("status", sa.String(20), server_default=sa.text("'active'")),
         sa.Column("inspect_result", JSONB, server_default="{}"),
-        sa.Column("used_in_menus", JSONB, server_default="'[]'"),
+        sa.Column("used_in_menus", JSONB, server_default=sa.text("'[]'")),
         sa.Column("created_at", sa.TIMESTAMP(timezone=True), server_default=sa.text("NOW()")),
     )
     op.create_index("ix_lots_site_item", "inventory_lots", ["site_id", "item_id"])

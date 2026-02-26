@@ -59,6 +59,7 @@ async def seed():
             is_active=True,
         )
         db.add_all([site1, site2])
+        await db.flush()
 
         # ── Users ──
         users = [
@@ -84,6 +85,7 @@ async def seed():
             ),
         ]
         db.add_all(users)
+        await db.flush()
 
         # ── Nutrition Policy ──
         policy = NutritionPolicy(
@@ -104,7 +106,7 @@ async def seed():
             id=ALLERGEN_POLICY_1_ID,
             name="Standard 22 Allergens",
             site_id=SITE_1_ID,
-            allergens=[
+            legal_allergens=[
                 "난류", "우유", "메밀", "땅콩", "대두", "밀", "고등어", "게",
                 "새우", "돼지고기", "복숭아", "토마토", "아황산류", "호두",
                 "닭고기", "쇠고기", "오징어", "조개류", "잣", "쑥", "홍합", "전복",
@@ -129,6 +131,7 @@ async def seed():
         for item in items:
             item.is_active = True
         db.add_all(items)
+        await db.flush()
 
         # ── Recipes ──
         recipes = [
